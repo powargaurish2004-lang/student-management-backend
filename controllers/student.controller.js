@@ -234,7 +234,6 @@ const toggleStudentStatus = async (req, res) => {
     }
 };
 
-
 // DELETE STUDENT
 const deleteStudent = async (req, res) => {
     try {
