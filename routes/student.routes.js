@@ -10,30 +10,31 @@ const {
 } = require("../controllers/student.controller");
 
 const router = express.Router();
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 
 // CREATE
-router.post("/", createStudent);
+router.post("/", requireAuth, createStudent);
 
 
 // READ ALL
-router.get("/", getStudents);
+router.get("/", requireAuth, getStudents);
 
 
 // READ ONE
-router.get("/:id", getStudentById);
+router.get("/:id", requireAuth, getStudentById);
 
 
 // UPDATE
-router.put("/:id", updateStudent);
+router.put("/:id", requireAuth, updateStudent);
 
 
 // TOGGLE STATUS
-router.patch("/:id/status", toggleStudentStatus);
+router.patch("/:id/status", requireAuth, requireAdmin, toggleStudentStatus);
 
 
 // DELETE
-router.delete("/:id", deleteStudent);
+router.delete("/:id", requireAuth, requireAdmin, deleteStudent);
 
 
 module.exports = router;

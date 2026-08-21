@@ -43,6 +43,7 @@ const createStudent = async (req, res) => {
         const studentId = await generateStudentId();
 
         const student = await Student.create({
+            owner: req.user.userId,
             studentId,
             name,
             age,
@@ -76,7 +77,9 @@ const getStudents = async (req, res) => {
             order
         } = req.query;
 
-        let filter = {};
+        let filter = req.user.role === "admin"
+            ? {}
+            : { owner: req.user.userId };
 
         // Search by name
         if (search) {
@@ -128,7 +131,10 @@ const getStudents = async (req, res) => {
 // GET SINGLE STUDENT
 const getStudentById = async (req, res) => {
     try {
-        const student = await Student.findById(req.params.id);
+        const query = req.user.role === "admin"
+            ? { _id: req.params.id }
+            : { _id: req.params.id, owner: req.user.userId };
+        const student = await Student.findOne(query);
 
         if (!student) {
             return res.status(404).json({
@@ -163,14 +169,22 @@ const updateStudent = async (req, res) => {
             });
         }
 
-        const student = await Student.findByIdAndUpdate(
-            req.params.id,
-            {
-                name,
-                age,
-                course,
-                status
-            },
+        const query = req.user.role === "admin"
+            ? { _id: req.params.id }
+            : { _id: req.params.id, owner: req.user.userId };
+        const update = {
+            name,
+            age,
+            course
+        };
+
+        if (req.user.role === "admin") {
+            update.status = status;
+        }
+
+        const student = await Student.findOneAndUpdate(
+            query,
+            update,
             {
                 new: true,
                 runValidators: true

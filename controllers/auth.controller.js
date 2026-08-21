@@ -5,16 +5,34 @@ const User = require("../models/user.model");
 // REGISTER
 const register = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, role = "user", adminCode } = req.body;
+        const normalizedEmail = email?.toLowerCase().trim();
 
-        if (!name || !email || !password) {
+        if (!name || !email || !password || !["user", "admin"].includes(role)) {
             return res.status(400).json({
                 success: false,
-                message: "Name, email and password are required"
+                message: "Name, email, password and a valid role are required"
             });
         }
 
-        const existingUser = await User.findOne({ email });
+        if (
+            role === "admin" &&
+            (!process.env.ADMIN_SIGNUP_CODE ||
+                !process.env.ADMIN_USERNAME ||
+                !process.env.ADMIN_EMAIL ||
+                !process.env.ADMIN_PASSWORD ||
+                name.trim() !== process.env.ADMIN_USERNAME ||
+                normalizedEmail !== process.env.ADMIN_EMAIL.toLowerCase() ||
+                password !== process.env.ADMIN_PASSWORD ||
+                adminCode !== process.env.ADMIN_SIGNUP_CODE)
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "A valid admin signup code is required"
+            });
+        }
+
+        const existingUser = await User.findOne({ email: normalizedEmail });
 
         if (existingUser) {
             return res.status(400).json({
@@ -27,14 +45,16 @@ const register = async (req, res) => {
 
         const user = await User.create({
             name,
-            email,
-            password: hashedPassword
+            email: normalizedEmail,
+            password: hashedPassword,
+            role
         });
 
         const token = jwt.sign(
             {
                 userId: user._id,
-                email: user.email
+                email: user.email,
+                role: user.role
             },
             process.env.JWT_SECRET,
             {
@@ -49,7 +69,8 @@ const register = async (req, res) => {
             user: {
                 id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: user.role
             }
         });
 
@@ -67,7 +88,8 @@ const register = async (req, res) => {
 // LOGIN
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, role } = req.body;
+        const normalizedEmail = email?.toLowerCase().trim();
 
         if (!email || !password) {
             return res.status(400).json({
@@ -76,7 +98,7 @@ const login = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: normalizedEmail });
 
         if (!user) {
             return res.status(401).json({
@@ -97,10 +119,29 @@ const login = async (req, res) => {
             });
         }
 
+        const isConfiguredAdmin =
+            normalizedEmail === process.env.ADMIN_EMAIL?.toLowerCase() &&
+            password === process.env.ADMIN_PASSWORD;
+
+        if (isConfiguredAdmin && user.role !== "admin") {
+            user.role = "admin";
+            await user.save();
+        }
+
+        const accountRole = user.role;
+
+        if (role && role !== accountRole) {
+            return res.status(403).json({
+                success: false,
+                message: `This account is registered as a ${accountRole}`
+            });
+        }
+
         const token = jwt.sign(
             {
                 userId: user._id,
-                email: user.email
+                email: user.email,
+                role: accountRole
             },
             process.env.JWT_SECRET,
             {
@@ -115,7 +156,8 @@ const login = async (req, res) => {
             user: {
                 id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: accountRole
             }
         });
 
